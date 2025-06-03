@@ -1,0 +1,16 @@
+2025-05-27 20:05:59,953 - numexpr.utils - INFO - NumExpr defaulting to 8 threads.
+2025-05-27 20:06:10,136 - __main__ - INFO - Bot PPO initialisé avec la configuration par défaut
+2025-05-27 20:06:11,164 - __main__ - INFO - Interface graphique initialisée
+2025-05-27 20:06:16,843 - __main__ - INFO - Environnement de trading initialisé avec 1000 points de données
+2025-05-27 20:06:48,491 - __main__ - INFO - Épisode 1: Reward=37.62, Profit=20.19%
+2025-05-27 20:06:48,891 - __main__ - INFO - Épisode 2: Reward=37.62, Profit=20.19%
+2025-05-27 20:06:49,274 - __main__ - INFO - Épisode 3: Reward=37.62, Profit=20.19%
+2025-05-27 20:06:49,634 - __main__ - INFO - Épisode 4: Reward=37.62, Profit=20.19%
+2025-05-27 20:06:50,042 - __main__ - INFO - Épisode 5: Reward=37.62, Profit=20.19%
+2025-05-27 20:06:50,424 - __main__ - INFO - Épisode 6: Reward=37.62, Profit=20.19%
+2025-05-27 20:06:50,793 - __main__ - INFO - Épisode 7: Reward=37.62, Profit=20.19%
+2025-05-27 20:06:51,196 - __main__ - INFO - Épisode 8: Reward=37.62, Profit=20.19%
+2025-05-27 20:06:51,598 - __main__ - INFO - Épisode 9: Reward=37.62, Profit=20.19%
+2025-05-27 20:06:51,981 - __main__ - INFO - Épisode 10: Reward=37.62, Profit=20.19%
+2025-05-27 20:06:51,984 - __main__ - INFO -    Reward moyen: 37.62
+2025-05-27 20:06:51,984 - __main__ - INFO -    Profit moyen: 20.19%
