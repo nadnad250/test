@@ -29,4 +29,5 @@ The following properties can be tweaked when adding the strategy:
 - **Stop Loss (Ticks)** – stop-loss distance in ticks
 - **Take Profit (Ticks)** – profit target distance in ticks
 - **SMA Period** – period of the moving average filter
-- **Z-Score Entry** – absolute Z-Score level that must be reached to enter a trade
+- **Z-Score Long** – minimum Z-Score to trigger a long entry (default `1`)
+- **Z-Score Short** – maximum Z-Score to trigger a short entry (default `-1`)

@@ -53,7 +53,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 StopLossTicks   = 10;
                 TakeProfitTicks = 15;
                 SmaPeriod       = 20;
-                ZScoreEntry     = 1.0;
+                ZScoreLong      = 1.0;   // Z >= 1 pour acheter
+                ZScoreShort     = -1.0;  // Z <= -1 pour vendre
 
                 BarsRequiredToTrade = Math.Max(ZWindow, SmaPeriod) + 2;
             }
@@ -73,20 +74,23 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
             else if (State == State.Terminated)
             {
-                Print("===== Récapitulatif des trades =====");
-                foreach (var tr in tradeHistory)
+                if (tradeHistory != null && tradeHistory.Count > 0)
                 {
-                    Print(string.Format(
-                        "Entrée: {0:yyyy-MM-dd HH:mm:ss} @ {1:0.00} | Sortie: {2:yyyy-MM-dd HH:mm:ss} @ {3:0.00} | Profit: {4:0.00}",
-                        tr.EntryTime,
-                        tr.EntryPrice,
-                        tr.ExitTime,
-                        tr.ExitPrice,
-                        tr.Profit));
-                }
+                    Print("===== Récapitulatif des trades =====");
+                    foreach (var tr in tradeHistory)
+                    {
+                        Print(string.Format(
+                            "Entrée: {0:yyyy-MM-dd HH:mm:ss} @ {1:0.00} | Sortie: {2:yyyy-MM-dd HH:mm:ss} @ {3:0.00} | Profit: {4:0.00}",
+                            tr.EntryTime,
+                            tr.EntryPrice,
+                            tr.ExitTime,
+                            tr.ExitPrice,
+                            tr.Profit));
+                    }
 
-                double total = tradeHistory.Sum(t => t.Profit);
-                Print(string.Format("Total Profit: {0:0.00}", total));
+                    double total = tradeHistory.Sum(t => t.Profit);
+                    Print(string.Format("Total Profit: {0:0.00}", total));
+                }
             }
         }
 
@@ -117,8 +121,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             zscores[0] = z;
 
             // 3) Conditions d'entrée
-            bool longSignal  = z >=  ZScoreEntry && delta >=  DeltaThreshold && Close[0] > sma[0];
-            bool shortSignal = z <= -ZScoreEntry && delta <= -DeltaThreshold && Close[0] < sma[0];
+            bool longSignal  = z >=  ZScoreLong  && delta >=  DeltaThreshold && Close[0] > sma[0];
+            bool shortSignal = z <=  ZScoreShort && delta <= -DeltaThreshold && Close[0] < sma[0];
 
             // 4) Entrée automatique : n’ouvrir qu’une seule position à la fois
             if (Position.MarketPosition == MarketPosition.Flat)
@@ -177,8 +181,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int SmaPeriod { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Z-Score Entry", Order = 5, GroupName = "Parameters")]
-        public double ZScoreEntry { get; set; }
+        [Display(Name = "Z-Score Long", Order = 5, GroupName = "Parameters")]
+        public double ZScoreLong { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Z-Score Short", Order = 6, GroupName = "Parameters")]
+        public double ZScoreShort { get; set; }
         #endregion
     }
 }
