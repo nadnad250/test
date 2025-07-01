@@ -48,3 +48,20 @@ The following properties can be tweaked when adding the strategy:
 - **Z-Score Short** – maximum Z-Score to trigger a short entry (default `-1`)
 - The strategy also outputs the per-bar Delta and order-book imbalance for
   reference in the NinjaScript Output window.
+
+Additional options allow finer risk control:
+
+- **Delta Cap** – ignores extreme Delta spikes beyond this value
+- **HTF Period / HTF SMA Period** – higher time frame series used to confirm
+  the main trend
+- **Start/End Time** – active trading window in HHmmss format
+- **Trailing Stop (Ticks)** – trailing stop distance once in profit
+- **ATR Period / ATR Multiplier** – adjusts order size based on volatility
+- **Daily Loss Limit** – stops trading for the day after this loss is reached
+
+The strategy writes a `trade_log.csv` file containing each trade’s entry and
+exit for later analysis. Delta, Z‑Score and the current position status are
+displayed on the chart using `Draw.TextFixed`.
+
+To obtain accurate volume data, enable **Tick Replay** on your chart and ensure
+your data provider supplies Level 2 tick information.

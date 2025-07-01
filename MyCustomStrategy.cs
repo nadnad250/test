@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using NinjaTrader.Cbi;
 using NinjaTrader.Data;
 using NinjaTrader.Gui.Tools;
@@ -37,6 +38,24 @@ namespace NinjaTrader.NinjaScript.Strategies
         private List<TradeRecord> tradeHistory;
         private int lastTradeCount;
 
+        // Rolling statistics for Z-Score
+        private double rollingSum;
+        private double rollingSumSq;
+
+        // Higher time frame filter
+        private SMA htfSma;
+
+        // Volatility indicator for position sizing
+        private ATR atr;
+
+        // Daily loss management
+        private double dailyStartProfit;
+        private DateTime lastProfitCheckDate;
+        private bool tradingDisabled;
+
+        // CSV logging
+        private StreamWriter csvWriter;
+
 
         protected override void OnStateChange()
         {
@@ -47,6 +66,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // On utilise l’énumération Calculate, pas MarketDataType
                 Calculate   = Calculate.OnBarClose;
                 IsOverlay   = false;
+                IsTickReplay = true;  // pour une précision maximale du volume
                 EntriesPerDirection = 1;
                 EntryHandling = EntryHandling.AllEntries;
                 IsExitOnSessionCloseStrategy = true;
@@ -60,6 +80,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                 SmaPeriod       = 20;
                 ZScoreLong      = 1.0;   // Z >= 1 pour acheter
                 ZScoreShort     = -1.0;  // Z <= -1 pour vendre
+                DeltaCap        = 1000;  // Limite pour filtrer les valeurs extrêmes
+                HTFPeriod       = 5;     // timeframe supplémentaire en minutes
+                HTFSmaPeriod    = 20;
+                StartTime       = 93000; // heure de début 09h30
+                EndTime         = 160000; // heure de fin 16h00
+                TrailingStopTicks = 8;
+                AtrPeriod       = 14;
+                AtrMultiplier   = 1.0;
+                DailyLossLimit  = 500;
 
                 BarsRequiredToTrade = Math.Max(ZWindow, SmaPeriod) + 2;
             }
@@ -72,7 +101,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // d'historique.
                 BarsRequiredToTrade = Math.Max(ZWindow, SmaPeriod) + 2;
 
-                // Pas de DataSeries supplémentaires à ajouter—on travaille sur le chart Range=8
+                // Ajouter une série de données de timeframe supérieur pour le filtre de tendance
+                AddDataSeries(BarsPeriodType.Minute, HTFPeriod);
             }
             else if (State == State.DataLoaded)
             {
@@ -81,6 +111,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 zscores     = new Series<double>(this);
                 imbalances  = new Series<double>(this);
                 sma         = SMA(SmaPeriod);  // Moyenne mobile personnalisable
+                htfSma      = SMA(BarsArray[1], HTFSmaPeriod);
+                atr         = ATR(AtrPeriod);
+
+                csvWriter   = new StreamWriter("trade_log.csv", false);
+
+                dailyStartProfit = 0;
+                lastProfitCheckDate = DateTime.MinValue;
+                tradingDisabled = false;
 
                 barBidVolume  = 0;
                 barAskVolume  = 0;
@@ -107,70 +145,118 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double total = tradeHistory.Sum(t => t.Profit);
                     Print(string.Format("Total Profit: {0:0.00}", total));
                 }
+
+                if (csvWriter != null)
+                {
+                    csvWriter.Flush();
+                    csvWriter.Close();
+                }
             }
         }
 
         protected override void OnBarUpdate()
         {
-            // Vérifier qu'on dispose d'un historique suffisant avant de
-            // accéder aux barres précédentes.
-            if (CurrentBar < BarsRequiredToTrade)
+            if (BarsInProgress != 0)
+                return;
+
+            // Gestion de la perte quotidienne
+            double cumProfit = SystemPerformance.AllTrades.TradesPerformance.Currency.CumProfit;
+            if (Time[0].Date != lastProfitCheckDate.Date)
+            {
+                dailyStartProfit = cumProfit;
+                lastProfitCheckDate = Time[0].Date;
+                tradingDisabled = false;
+            }
+            else if (!tradingDisabled && cumProfit - dailyStartProfit <= -DailyLossLimit)
+            {
+                tradingDisabled = true;
+                Print("Limite de perte journalière atteinte - stratégie désactivée");
+            }
+            if (tradingDisabled)
             {
                 barBidVolume = 0;
                 barAskVolume = 0;
                 return;
             }
 
-            // Toutes les conditions initiales sont gérées par BarsRequiredToTrade
+            // Filtre temporel
+            int hhmmss = ToTime(Time[0]);
+            if (hhmmss < StartTime || hhmmss > EndTime)
+            {
+                barBidVolume = 0;
+                barAskVolume = 0;
+                return;
+            }
 
-            // 1) Delta calculé à partir du flux de tick (bid/ask)
-            // On utilise les volumes accumulés dans OnMarketData
+            if (CurrentBar < BarsRequiredToTrade || CurrentBars[1] < HTFSmaPeriod)
+            {
+                barBidVolume = 0;
+                barAskVolume = 0;
+                return;
+            }
+
+            // 1) Delta calculé à partir du flux de tick
             double delta = barBidVolume - barAskVolume;
+            if (Math.Abs(delta) > DeltaCap)
+                delta = Math.Sign(delta) * DeltaCap;
             deltas[0] = delta;
 
-            // Imbalance entre bid et ask pour information
             double totalVol = barBidVolume + barAskVolume;
             double imbalance = totalVol > 0 ? delta / totalVol : 0;
             imbalances[0] = imbalance;
-            Print(string.Format("Delta: {0:0.0}, Imbalance: {1:P1}", delta, imbalance));
 
-            // Réinitialiser les compteurs pour la barre suivante
+            // Réinitialiser les compteurs
             barBidVolume = 0;
             barAskVolume = 0;
 
-            // 2) Calcul du Z-Score sur les zWindow barres précédentes
-            double sum   = 0;
-            double sumSq = 0;
-            for (int i = 1; i <= ZWindow; i++)
+            // 2) Z-Score à l'aide de sommes roulantes
+            if (CurrentBar == BarsRequiredToTrade)
             {
-                sum   += deltas[i];
-                sumSq += deltas[i] * deltas[i];
+                rollingSum = 0;
+                rollingSumSq = 0;
+                for (int i = 1; i <= ZWindow; i++)
+                {
+                    rollingSum += deltas[i];
+                    rollingSumSq += deltas[i] * deltas[i];
+                }
+            }
+            else
+            {
+                rollingSum += deltas[1] - deltas[ZWindow + 1];
+                rollingSumSq += deltas[1] * deltas[1] - deltas[ZWindow + 1] * deltas[ZWindow + 1];
             }
 
-            double mean = sum / ZWindow;
-            double variance = (sumSq - (sum * sum / ZWindow)) / (ZWindow - 1);
+            double mean = rollingSum / ZWindow;
+            double variance = (rollingSumSq - (rollingSum * rollingSum / ZWindow)) / (ZWindow - 1);
             double stdDev   = variance > 0 ? Math.Sqrt(variance) : 0;
             double z = stdDev != 0 ? (delta - mean) / stdDev : 0;
             zscores[0] = z;
 
-            // 3) Conditions d'entrée
-            bool longSignal  = z >=  ZScoreLong  && delta >=  DeltaThreshold && Close[0] > sma[0];
-            bool shortSignal = z <=  ZScoreShort && delta <= -DeltaThreshold && Close[0] < sma[0];
+            bool longTrend  = Closes[1][0] > htfSma[0];
+            bool shortTrend = Closes[1][0] < htfSma[0];
 
-            // 4) Entrée automatique : n’ouvrir qu’une seule position à la fois
+            bool longSignal  = longTrend  && z >=  ZScoreLong  && delta >=  DeltaThreshold && Close[0] > sma[0];
+            bool shortSignal = shortTrend && z <=  ZScoreShort && delta <= -DeltaThreshold && Close[0] < sma[0];
+
+            int qty = DefaultQuantity;
+            if (AtrMultiplier > 0 && atr != null)
+                qty = Math.Max(1, (int)Math.Round(AtrMultiplier * atr[0] / TickSize));
+
             if (Position.MarketPosition == MarketPosition.Flat)
             {
                 if (longSignal)
                 {
-                    EnterLong("LongEntry");
+                    EnterLong(qty, "LongEntry");
                     SetStopLoss("LongEntry", CalculationMode.Ticks, StopLossTicks, false);
                     SetProfitTarget("LongEntry", CalculationMode.Ticks, TakeProfitTicks);
+                    SetTrailStop("LongEntry", CalculationMode.Ticks, TrailingStopTicks, false);
                 }
                 else if (shortSignal)
                 {
-                    EnterShort("ShortEntry");
+                    EnterShort(qty, "ShortEntry");
                     SetStopLoss("ShortEntry", CalculationMode.Ticks, StopLossTicks, false);
                     SetProfitTarget("ShortEntry", CalculationMode.Ticks, TakeProfitTicks);
+                    SetTrailStop("ShortEntry", CalculationMode.Ticks, TrailingStopTicks, false);
                 }
             }
 
@@ -186,8 +272,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ExitPrice = tr.Exit.Price,
                     Profit = tr.ProfitCurrency
                 });
+                csvWriter?.WriteLine(string.Format("{0},{1:F2},{2},{3:F2},{4:F2}",
+                    tr.Entry.Time.ToString("u"), tr.Entry.Price,
+                    tr.Exit.Time.ToString("u"), tr.Exit.Price, tr.ProfitCurrency));
+                csvWriter?.Flush();
                 lastTradeCount = SystemPerformance.AllTrades.Count;
             }
+
+            Draw.TextFixed(this, "info",
+                string.Format("Delta {0:0} | Z {1:0.00} | Pos {2}", delta, z, Position.MarketPosition),
+                TextPosition.TopLeft);
         }
 
         // Accumulation du volume bid/ask à chaque tick pour calculer le Delta
@@ -235,6 +329,42 @@ namespace NinjaTrader.NinjaScript.Strategies
         [NinjaScriptProperty]
         [Display(Name = "Z-Score Short", Order = 6, GroupName = "Parameters")]
         public double ZScoreShort { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Delta Cap", Order = 7, GroupName = "Parameters")]
+        public double DeltaCap { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "HTF Period (min)", Order = 8, GroupName = "Parameters")]
+        public int HTFPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "HTF SMA Period", Order = 9, GroupName = "Parameters")]
+        public int HTFSmaPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Start Time", Order = 10, GroupName = "Parameters")]
+        public int StartTime { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "End Time", Order = 11, GroupName = "Parameters")]
+        public int EndTime { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Trailing Stop (Ticks)", Order = 12, GroupName = "Parameters")]
+        public int TrailingStopTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "ATR Period", Order = 13, GroupName = "Parameters")]
+        public int AtrPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "ATR Multiplier", Order = 14, GroupName = "Parameters")]
+        public double AtrMultiplier { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Daily Loss Limit", Order = 15, GroupName = "Parameters")]
+        public double DailyLossLimit { get; set; }
         #endregion
     }
 }
