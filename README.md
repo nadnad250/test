@@ -15,3 +15,7 @@ moving average.
 
 The repository also contains a sample Python launcher script (`LANCEUR_CORRIGE.py`)
 and log file for reference.
+
+When the strategy finishes, it prints a summary of all trades with entry/exit
+times and profit in the NinjaScript Output window. This helps review historical
+performance.

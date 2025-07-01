@@ -1,5 +1,7 @@
 #region Using declarations
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using NinjaTrader.Cbi;
 using NinjaTrader.Data;
 using NinjaTrader.Gui.Tools;
@@ -15,6 +17,19 @@ namespace NinjaTrader.NinjaScript.Strategies
         private Series<double> deltas;    // Série pour stocker Delta
         private Series<double> zscores;   // Série pour stocker Z-Score
         private SMA sma;                  // SMA(20) sur Range=8
+
+        // Structures pour la performance
+        private class TradeRecord
+        {
+            public DateTime EntryTime;
+            public double EntryPrice;
+            public DateTime ExitTime;
+            public double ExitPrice;
+            public double Profit;
+        }
+
+        private List<TradeRecord> tradeHistory;
+        private int lastTradeCount;
 
         private int zWindow = 20;             // Fenêtre Z-Score en nombre de barres
         private double deltaThreshold = 300;  // Seuil minimum pour Delta/Imbalance
@@ -45,6 +60,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                 deltas   = new Series<double>(this);
                 zscores  = new Series<double>(this);
                 sma      = SMA(20);  // Moyenne mobile sur 20 barres Range=8
+
+                tradeHistory = new List<TradeRecord>();
+                lastTradeCount = 0;
+            }
+            else if (State == State.Terminated)
+            {
+                Print("===== Récapitulatif des trades =====");
+                foreach (var tr in tradeHistory)
+                {
+                    Print($"Entrée: {tr.EntryTime:yyyy-MM-dd HH:mm:ss} @ {tr.EntryPrice:0.00} | " +
+                          $"Sortie: {tr.ExitTime:yyyy-MM-dd HH:mm:ss} @ {tr.ExitPrice:0.00} | " +
+                          $"Profit: {tr.Profit:0.00}");
+                }
+
+                double total = tradeHistory.Sum(t => t.Profit);
+                Print($"Total Profit: {total:0.00}");
             }
         }
 
@@ -96,6 +127,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                     SetStopLoss("ShortEntry", CalculationMode.Ticks, stopLossTicks, false);
                     SetProfitTarget("ShortEntry", CalculationMode.Ticks, takeProfitTicks);
                 }
+            }
+
+            // Suivi de performance : enregistrer chaque trade clôturé
+            if (SystemPerformance.AllTrades.Count > lastTradeCount)
+            {
+                var tr = SystemPerformance.AllTrades[lastTradeCount];
+                tradeHistory.Add(new TradeRecord
+                {
+                    EntryTime = tr.Entry.Time,
+                    EntryPrice = tr.Entry.Price,
+                    ExitTime = tr.Exit.Time,
+                    ExitPrice = tr.Exit.Price,
+                    Profit = tr.ProfitCurrency
+                });
+                lastTradeCount = SystemPerformance.AllTrades.Count;
             }
         }
     }
