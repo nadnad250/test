@@ -15,9 +15,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public class MyCustomStrategy : Strategy
     {
-        private Series<double> deltas;    // Série pour stocker Delta
+        private Series<double> deltas;    // Série pour stocker Delta par bar
         private Series<double> zscores;   // Série pour stocker Z-Score
+        private Series<double> imbalances; // Série pour stocker l'imbalance
         private SMA sma;                  // SMA personnalisable
+
+        // Accumulateurs de volume pour le Delta par tick
+        private double barBidVolume;
+        private double barAskVolume;
 
         // Structures pour la performance
         private class TradeRecord
@@ -72,9 +77,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             else if (State == State.DataLoaded)
             {
                 // Initialisation des séries de calcul
-                deltas   = new Series<double>(this);
-                zscores  = new Series<double>(this);
-                sma      = SMA(SmaPeriod);  // Moyenne mobile personnalisable
+                deltas      = new Series<double>(this);
+                zscores     = new Series<double>(this);
+                imbalances  = new Series<double>(this);
+                sma         = SMA(SmaPeriod);  // Moyenne mobile personnalisable
+
+                barBidVolume  = 0;
+                barAskVolume  = 0;
 
                 tradeHistory = new List<TradeRecord>();
                 lastTradeCount = 0;
@@ -106,16 +115,28 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Vérifier qu'on dispose d'un historique suffisant avant de
             // accéder aux barres précédentes.
             if (CurrentBar < BarsRequiredToTrade)
+            {
+                barBidVolume = 0;
+                barAskVolume = 0;
                 return;
+            }
 
             // Toutes les conditions initiales sont gérées par BarsRequiredToTrade
 
-            // 1) Calcul du Delta (imagination de ton propre Delta ou via OrderFlow)
-            // Ici on prend l’écart des closes précédentes comme proxy de Delta
-            // Utilisation des index de barres precedentes directement
-            // au lieu de la collection Closes[] qui requiert des series
-            double delta = Close[1] - Close[2];
+            // 1) Delta calculé à partir du flux de tick (bid/ask)
+            // On utilise les volumes accumulés dans OnMarketData
+            double delta = barBidVolume - barAskVolume;
             deltas[0] = delta;
+
+            // Imbalance entre bid et ask pour information
+            double totalVol = barBidVolume + barAskVolume;
+            double imbalance = totalVol > 0 ? delta / totalVol : 0;
+            imbalances[0] = imbalance;
+            Print(string.Format("Delta: {0:0.0}, Imbalance: {1:P1}", delta, imbalance));
+
+            // Réinitialiser les compteurs pour la barre suivante
+            barBidVolume = 0;
+            barAskVolume = 0;
 
             // 2) Calcul du Z-Score sur les zWindow barres précédentes
             double sum   = 0;
@@ -167,6 +188,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 });
                 lastTradeCount = SystemPerformance.AllTrades.Count;
             }
+        }
+
+        // Accumulation du volume bid/ask à chaque tick pour calculer le Delta
+        protected override void OnMarketData(MarketDataEventArgs e)
+        {
+            if (e.MarketDataType != MarketDataType.Last)
+                return;
+
+            double bid = GetCurrentBid();
+            double ask = GetCurrentAsk();
+
+            if (e.Price <= bid)
+                barBidVolume += e.Volume;
+            else if (e.Price >= ask)
+                barAskVolume += e.Volume;
         }
 
         #region Paramètres

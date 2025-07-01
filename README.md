@@ -1,9 +1,10 @@
 # NinjaTrader Strategy Demo
 
 This repository demonstrates a simple NinjaTrader **scalping** strategy
-implemented in `MyCustomStrategy.cs`. The strategy combines a Delta
-calculation, a Z-Score over a configurable window and a simple moving
-average. All of the key settings can be adjusted from the NinjaTrader UI.
+implemented in `MyCustomStrategy.cs`. The strategy calculates Delta and
+order-book imbalance **per tick** using Level 2 data, then evaluates a
+Z-Score over a configurable window with an optional SMA filter. All of the key
+settings can be adjusted from the NinjaTrader UI.
 
 ### Usage
 
@@ -17,6 +18,11 @@ average. All of the key settings can be adjusted from the NinjaTrader UI.
    historical data before it begins evaluating signals. NinjaTrader handles
    this automatically but you may see no trades until enough bars have
    accumulated.
+
+   Delta is derived from tick-by-tick trades: when a trade occurs at the bid
+   price it adds to bid volume and when a trade hits the ask it adds to ask
+   volume. The difference between these two volumes forms the per-bar Delta,
+   while the imbalance is `Delta / (bid + ask)` for that bar.
 
 If NinjaTrader is disconnected from its data feed, the strategy will still
 process any historical bars that are loaded on the chart. Make sure to load
@@ -40,3 +46,5 @@ The following properties can be tweaked when adding the strategy:
 - **SMA Period** – period of the moving average filter
 - **Z-Score Long** – minimum Z-Score to trigger a long entry (default `1`)
 - **Z-Score Short** – maximum Z-Score to trigger a short entry (default `-1`)
+- The strategy also outputs the per-bar Delta and order-book imbalance for
+  reference in the NinjaScript Output window.
