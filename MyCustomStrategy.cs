@@ -69,13 +69,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Print("===== Récapitulatif des trades =====");
                 foreach (var tr in tradeHistory)
                 {
-                    Print($"Entrée: {tr.EntryTime:yyyy-MM-dd HH:mm:ss} @ {tr.EntryPrice:0.00} | " +
-                          $"Sortie: {tr.ExitTime:yyyy-MM-dd HH:mm:ss} @ {tr.ExitPrice:0.00} | " +
-                          $"Profit: {tr.Profit:0.00}");
+                    Print(string.Format(
+                        "Entrée: {0:yyyy-MM-dd HH:mm:ss} @ {1:0.00} | Sortie: {2:yyyy-MM-dd HH:mm:ss} @ {3:0.00} | Profit: {4:0.00}",
+                        tr.EntryTime,
+                        tr.EntryPrice,
+                        tr.ExitTime,
+                        tr.ExitPrice,
+                        tr.Profit));
                 }
 
                 double total = tradeHistory.Sum(t => t.Profit);
-                Print($"Total Profit: {total:0.00}");
+                Print(string.Format("Total Profit: {0:0.00}", total));
             }
         }
 
