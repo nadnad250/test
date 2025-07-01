@@ -57,7 +57,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // 1) Calcul du Delta (imagination de ton propre Delta ou via OrderFlow)
             // Ici on prend l’écart des closes précédentes comme proxy de Delta
-            double delta = Closes[1][0] - Closes[2][0];
+            // Utilisation des index de barres precedentes directement
+            // au lieu de la collection Closes[] qui requiert des series
+            double delta = Close[1] - Close[2];
             deltas[0] = delta;
 
             // 2) Calcul du Z-Score sur les zWindow barres précédentes
