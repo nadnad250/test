@@ -18,6 +18,10 @@ average. All of the key settings can be adjusted from the NinjaTrader UI.
    this automatically but you may see no trades until enough bars have
    accumulated.
 
+If NinjaTrader is disconnected from its data feed, the strategy will still
+process any historical bars that are loaded on the chart. Make sure to load
+enough days of data before enabling the strategy when running offline.
+
 The repository also contains a sample Python launcher script (`LANCEUR_CORRIGE.py`)
 and log file for reference.
 
