@@ -22,7 +22,7 @@ settings can be adjusted from the NinjaTrader UI.
    Delta is derived from tick-by-tick trades: when a trade occurs at the bid
    price it adds to bid volume and when a trade hits the ask it adds to ask
    volume. The difference between these two volumes forms the per-bar Delta,
-   while the imbalance is `Delta / (bid + ask)` for that bar.
+   while the imbalance percentage is `Delta / (bid + ask) * 100` for that bar.
 
 If NinjaTrader is disconnected from its data feed, the strategy will still
 process any historical bars that are loaded on the chart. Make sure to load
@@ -41,6 +41,8 @@ The following properties can be tweaked when adding the strategy:
 
 - **Z-Score Window** – number of bars used to compute the Z-Score
 - **Delta Threshold** – minimum Delta required to trigger an entry
+- **Imbalance Threshold** – minimum imbalance percentage (Delta / volume * 100)
+  required alongside Delta
 - **Stop Loss (Ticks)** – stop-loss distance in ticks
 - **Take Profit (Ticks)** – profit target distance in ticks
 - **SMA Period** – period of the moving average filter

@@ -18,7 +18,7 @@ namespace NinjaTrader.NinjaScript.Strategies
     {
         private Series<double> deltas;    // Série pour stocker Delta par bar
         private Series<double> zscores;   // Série pour stocker Z-Score
-        private Series<double> imbalances; // Série pour stocker l'imbalance
+        private Series<double> imbalances; // Série pour stocker l'imbalance en %
         private SMA sma;                  // SMA personnalisable
 
         // Accumulateurs de volume pour le Delta par tick
@@ -75,6 +75,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Paramètres configurables par l'utilisateur
                 ZWindow         = 20;
                 DeltaThreshold  = 300;
+                ImbalanceThreshold = 300; // Delta/Volume * 100 >= 300%
                 StopLossTicks   = 10;
                 TakeProfitTicks = 15;
                 SmaPeriod       = 20;
@@ -203,7 +204,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             double totalVol = barBidVolume + barAskVolume;
             double imbalance = totalVol > 0 ? delta / totalVol : 0;
-            imbalances[0] = imbalance;
+            double imbalancePct = imbalance * 100.0; // en pourcentage
+            imbalances[0] = imbalancePct;
 
             // Réinitialiser les compteurs
             barBidVolume = 0;
@@ -235,8 +237,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool longTrend  = Closes[1][0] > htfSma[0];
             bool shortTrend = Closes[1][0] < htfSma[0];
 
-            bool longSignal  = longTrend  && z >=  ZScoreLong  && delta >=  DeltaThreshold && Close[0] > sma[0];
-            bool shortSignal = shortTrend && z <=  ZScoreShort && delta <= -DeltaThreshold && Close[0] < sma[0];
+            bool longSignal  = longTrend  && z >=  ZScoreLong  &&
+                delta >= DeltaThreshold && imbalancePct >= ImbalanceThreshold && Close[0] > sma[0];
+            bool shortSignal = shortTrend && z <=  ZScoreShort &&
+                delta <= -DeltaThreshold && imbalancePct <= -ImbalanceThreshold && Close[0] < sma[0];
 
             int qty = DefaultQuantity;
             if (AtrMultiplier > 0 && atr != null)
@@ -280,7 +284,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             Draw.TextFixed(this, "info",
-                string.Format("Delta {0:0} | Z {1:0.00} | Pos {2}", delta, z, Position.MarketPosition),
+                string.Format("Delta {0:0} | Imb {1:0}% | Z {2:0.00} | Pos {3}",
+                    delta, imbalancePct, z, Position.MarketPosition),
                 TextPosition.TopLeft);
         }
 
@@ -310,60 +315,64 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double DeltaThreshold { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Stop Loss (Ticks)", Order = 2, GroupName = "Parameters")]
+        [Display(Name = "Imbalance Threshold", Order = 2, GroupName = "Parameters")]
+        public double ImbalanceThreshold { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Stop Loss (Ticks)", Order = 3, GroupName = "Parameters")]
         public int StopLossTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Take Profit (Ticks)", Order = 3, GroupName = "Parameters")]
+        [Display(Name = "Take Profit (Ticks)", Order = 4, GroupName = "Parameters")]
         public int TakeProfitTicks { get; set; }
 
         [NinjaScriptProperty]
         [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue)]
-        [Display(Name = "SMA Period", Order = 4, GroupName = "Parameters")]
+        [Display(Name = "SMA Period", Order = 5, GroupName = "Parameters")]
         public int SmaPeriod { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Z-Score Long", Order = 5, GroupName = "Parameters")]
+        [Display(Name = "Z-Score Long", Order = 6, GroupName = "Parameters")]
         public double ZScoreLong { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Z-Score Short", Order = 6, GroupName = "Parameters")]
+        [Display(Name = "Z-Score Short", Order = 7, GroupName = "Parameters")]
         public double ZScoreShort { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Delta Cap", Order = 7, GroupName = "Parameters")]
+        [Display(Name = "Delta Cap", Order = 8, GroupName = "Parameters")]
         public double DeltaCap { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "HTF Period (min)", Order = 8, GroupName = "Parameters")]
+        [Display(Name = "HTF Period (min)", Order = 9, GroupName = "Parameters")]
         public int HTFPeriod { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "HTF SMA Period", Order = 9, GroupName = "Parameters")]
+        [Display(Name = "HTF SMA Period", Order = 10, GroupName = "Parameters")]
         public int HTFSmaPeriod { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Start Time", Order = 10, GroupName = "Parameters")]
+        [Display(Name = "Start Time", Order = 11, GroupName = "Parameters")]
         public int StartTime { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "End Time", Order = 11, GroupName = "Parameters")]
+        [Display(Name = "End Time", Order = 12, GroupName = "Parameters")]
         public int EndTime { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Trailing Stop (Ticks)", Order = 12, GroupName = "Parameters")]
+        [Display(Name = "Trailing Stop (Ticks)", Order = 13, GroupName = "Parameters")]
         public int TrailingStopTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "ATR Period", Order = 13, GroupName = "Parameters")]
+        [Display(Name = "ATR Period", Order = 14, GroupName = "Parameters")]
         public int AtrPeriod { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "ATR Multiplier", Order = 14, GroupName = "Parameters")]
+        [Display(Name = "ATR Multiplier", Order = 15, GroupName = "Parameters")]
         public double AtrMultiplier { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Daily Loss Limit", Order = 15, GroupName = "Parameters")]
+        [Display(Name = "Daily Loss Limit", Order = 16, GroupName = "Parameters")]
         public double DailyLossLimit { get; set; }
         #endregion
     }
