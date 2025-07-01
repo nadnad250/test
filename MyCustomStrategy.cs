@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.ComponentModel.DataAnnotations;
 using NinjaTrader.Cbi;
 using NinjaTrader.Data;
 using NinjaTrader.Gui.Tools;
@@ -154,7 +155,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         #region Paramètres
         [NinjaScriptProperty]
-        [Range(5, int.MaxValue)]
+        [System.ComponentModel.DataAnnotations.Range(5, int.MaxValue)]
         [Display(Name = "Z-Score Window", Order = 0, GroupName = "Parameters")]
         public int ZWindow { get; set; }
 
@@ -171,7 +172,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int TakeProfitTicks { get; set; }
 
         [NinjaScriptProperty]
-        [Range(1, int.MaxValue)]
+        [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue)]
         [Display(Name = "SMA Period", Order = 4, GroupName = "Parameters")]
         public int SmaPeriod { get; set; }
 
