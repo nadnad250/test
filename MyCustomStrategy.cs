@@ -276,10 +276,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ExitPrice = tr.Exit.Price,
                     Profit = tr.ProfitCurrency
                 });
-                csvWriter?.WriteLine(string.Format("{0},{1:F2},{2},{3:F2},{4:F2}",
-                    tr.Entry.Time.ToString("u"), tr.Entry.Price,
-                    tr.Exit.Time.ToString("u"), tr.Exit.Price, tr.ProfitCurrency));
-                csvWriter?.Flush();
+                if (csvWriter != null)
+                {
+                    csvWriter.WriteLine(string.Format("{0},{1:F2},{2},{3:F2},{4:F2}",
+                        tr.Entry.Time.ToString("u"), tr.Entry.Price,
+                        tr.Exit.Time.ToString("u"), tr.Exit.Price, tr.ProfitCurrency));
+                    csvWriter.Flush();
+                }
                 lastTradeCount = SystemPerformance.AllTrades.Count;
             }
 
