@@ -16,7 +16,7 @@ namespace NinjaTrader.NinjaScript.Strategies
     {
         private Series<double> deltas;    // Série pour stocker Delta
         private Series<double> zscores;   // Série pour stocker Z-Score
-        private SMA sma;                  // SMA(20) sur Range=8
+        private SMA sma;                  // SMA personnalisable
 
         // Structures pour la performance
         private class TradeRecord
@@ -31,10 +31,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         private List<TradeRecord> tradeHistory;
         private int lastTradeCount;
 
-        private int zWindow = 20;             // Fenêtre Z-Score en nombre de barres
-        private double deltaThreshold = 300;  // Seuil minimum pour Delta/Imbalance
-        private int stopLossTicks = 10;       // StopLoss en ticks
-        private int takeProfitTicks = 15;     // TakeProfit en ticks
 
         protected override void OnStateChange()
         {
@@ -49,6 +45,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 EntryHandling = EntryHandling.AllEntries;
                 IsExitOnSessionCloseStrategy = true;
                 ExitOnSessionCloseSeconds    = 30;
+
+                // Paramètres configurables par l'utilisateur
+                ZWindow         = 20;
+                DeltaThreshold  = 300;
+                StopLossTicks   = 10;
+                TakeProfitTicks = 15;
+                SmaPeriod       = 20;
+                ZScoreEntry     = 1.0;
+
+                BarsRequiredToTrade = Math.Max(ZWindow, SmaPeriod) + 2;
             }
             else if (State == State.Configure)
             {
@@ -59,7 +65,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Initialisation des séries de calcul
                 deltas   = new Series<double>(this);
                 zscores  = new Series<double>(this);
-                sma      = SMA(20);  // Moyenne mobile sur 20 barres Range=8
+                sma      = SMA(SmaPeriod);  // Moyenne mobile personnalisable
 
                 tradeHistory = new List<TradeRecord>();
                 lastTradeCount = 0;
@@ -85,10 +91,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         protected override void OnBarUpdate()
         {
-            // Attention : on attend au moins (zWindow + 2) barres complètes 
-            // pour accéder en toute sécurité à Closes[2][0] et deltas[1..zWindow]
-            if (CurrentBar < zWindow + 2)
-                return;
+            // Toutes les conditions initiales sont gérées par BarsRequiredToTrade
 
             // 1) Calcul du Delta (imagination de ton propre Delta ou via OrderFlow)
             // Ici on prend l’écart des closes précédentes comme proxy de Delta
@@ -100,21 +103,21 @@ namespace NinjaTrader.NinjaScript.Strategies
             // 2) Calcul du Z-Score sur les zWindow barres précédentes
             double sum   = 0;
             double sumSq = 0;
-            for (int i = 1; i <= zWindow; i++)
+            for (int i = 1; i <= ZWindow; i++)
             {
                 sum   += deltas[i];
                 sumSq += deltas[i] * deltas[i];
             }
 
-            double mean = sum / zWindow;
-            double variance = (sumSq - (sum * sum / zWindow)) / (zWindow - 1);
+            double mean = sum / ZWindow;
+            double variance = (sumSq - (sum * sum / ZWindow)) / (ZWindow - 1);
             double stdDev   = variance > 0 ? Math.Sqrt(variance) : 0;
             double z = stdDev != 0 ? (delta - mean) / stdDev : 0;
             zscores[0] = z;
 
             // 3) Conditions d'entrée
-            bool longSignal  = z >=  1.0 && delta >=  deltaThreshold && Close[0] > sma[0];
-            bool shortSignal = z <= -1.0 && delta <= -deltaThreshold && Close[0] < sma[0];
+            bool longSignal  = z >=  ZScoreEntry && delta >=  DeltaThreshold && Close[0] > sma[0];
+            bool shortSignal = z <= -ZScoreEntry && delta <= -DeltaThreshold && Close[0] < sma[0];
 
             // 4) Entrée automatique : n’ouvrir qu’une seule position à la fois
             if (Position.MarketPosition == MarketPosition.Flat)
@@ -122,14 +125,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (longSignal)
                 {
                     EnterLong("LongEntry");
-                    SetStopLoss("LongEntry", CalculationMode.Ticks, stopLossTicks, false);
-                    SetProfitTarget("LongEntry", CalculationMode.Ticks, takeProfitTicks);
+                    SetStopLoss("LongEntry", CalculationMode.Ticks, StopLossTicks, false);
+                    SetProfitTarget("LongEntry", CalculationMode.Ticks, TakeProfitTicks);
                 }
                 else if (shortSignal)
                 {
                     EnterShort("ShortEntry");
-                    SetStopLoss("ShortEntry", CalculationMode.Ticks, stopLossTicks, false);
-                    SetProfitTarget("ShortEntry", CalculationMode.Ticks, takeProfitTicks);
+                    SetStopLoss("ShortEntry", CalculationMode.Ticks, StopLossTicks, false);
+                    SetProfitTarget("ShortEntry", CalculationMode.Ticks, TakeProfitTicks);
                 }
             }
 
@@ -148,5 +151,33 @@ namespace NinjaTrader.NinjaScript.Strategies
                 lastTradeCount = SystemPerformance.AllTrades.Count;
             }
         }
+
+        #region Paramètres
+        [NinjaScriptProperty]
+        [Range(5, int.MaxValue)]
+        [Display(Name = "Z-Score Window", Order = 0, GroupName = "Parameters")]
+        public int ZWindow { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Delta Threshold", Order = 1, GroupName = "Parameters")]
+        public double DeltaThreshold { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Stop Loss (Ticks)", Order = 2, GroupName = "Parameters")]
+        public int StopLossTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Take Profit (Ticks)", Order = 3, GroupName = "Parameters")]
+        public int TakeProfitTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name = "SMA Period", Order = 4, GroupName = "Parameters")]
+        public int SmaPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Z-Score Entry", Order = 5, GroupName = "Parameters")]
+        public double ZScoreEntry { get; set; }
+        #endregion
     }
 }

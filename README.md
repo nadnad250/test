@@ -2,8 +2,8 @@
 
 This repository demonstrates a simple NinjaTrader **scalping** strategy
 implemented in `MyCustomStrategy.cs`. The strategy combines a Delta
-calculation, a Z-Score over a configurable window and a 20-period simple
-moving average.
+calculation, a Z-Score over a configurable window and a simple moving
+average. All of the key settings can be adjusted from the NinjaTrader UI.
 
 ### Usage
 
@@ -19,3 +19,14 @@ and log file for reference.
 When the strategy finishes, it prints a summary of all trades with entry/exit
 times and profit in the NinjaScript Output window. This helps review historical
 performance.
+
+### Parameters
+
+The following properties can be tweaked when adding the strategy:
+
+- **Z-Score Window** – number of bars used to compute the Z-Score
+- **Delta Threshold** – minimum Delta required to trigger an entry
+- **Stop Loss (Ticks)** – stop-loss distance in ticks
+- **Take Profit (Ticks)** – profit target distance in ticks
+- **SMA Period** – period of the moving average filter
+- **Z-Score Entry** – absolute Z-Score level that must be reached to enter a trade
