@@ -13,6 +13,11 @@ average. All of the key settings can be adjusted from the NinjaTrader UI.
 3. Create a new chart with a Range 8 data series and add `MyCustomStrategy` as
    a strategy.
 
+   The script needs at least **`max(Z-Score Window, SMA Period) + 2` bars** of
+   historical data before it begins evaluating signals. NinjaTrader handles
+   this automatically but you may see no trades until enough bars have
+   accumulated.
+
 The repository also contains a sample Python launcher script (`LANCEUR_CORRIGE.py`)
 and log file for reference.
 

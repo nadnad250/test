@@ -60,6 +60,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
             else if (State == State.Configure)
             {
+                // Recalculer le nombre minimal de barres nécessaires en
+                // fonction des paramètres saisis par l'utilisateur. Cela
+                // garantit que les accès à Close[1] ou Close[2] ne se
+                // produisent qu'après avoir accumulé suffisamment
+                // d'historique.
+                BarsRequiredToTrade = Math.Max(ZWindow, SmaPeriod) + 2;
+
                 // Pas de DataSeries supplémentaires à ajouter—on travaille sur le chart Range=8
             }
             else if (State == State.DataLoaded)
@@ -96,6 +103,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         protected override void OnBarUpdate()
         {
+            // Vérifier qu'on dispose d'un historique suffisant avant de
+            // accéder aux barres précédentes.
+            if (CurrentBar < BarsRequiredToTrade)
+                return;
+
             // Toutes les conditions initiales sont gérées par BarsRequiredToTrade
 
             // 1) Calcul du Delta (imagination de ton propre Delta ou via OrderFlow)
